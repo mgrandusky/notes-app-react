@@ -1,0 +1,134 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String   @id @default(uuid())
+  username        String   @unique
+  email           String   @unique
+  password        String?
+  oauthProvider   String?  // 'google' | 'github'
+  oauthId         String?
+  profilePicture  String?
+  aiPreferences   Json?    // AI settings
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  notes           Note[]
+  sharedNotes     SharedNote[]
+  chatHistory     ChatMessage[]
+
+  @@index([email])
+  @@index([username])
+}
+
+model Note {
+  id                String   @id @default(uuid())
+  userId            String
+  title             String
+  content           String   @db.Text
+  contentMarkdown   String?  @db.Text
+  tags              String[]
+  color             String?
+  isFavorite        Boolean  @default(false)
+  isArchived        Boolean  @default(false)
+  isDeleted         Boolean  @default(false)
+  aiSummary         String?  @db.Text
+  sentiment         String?  // 'positive' | 'negative' | 'neutral'
+  sentimentScore    Float?
+  language          String?  @default("en")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastViewedAt      DateTime?
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedWith        SharedNote[]
+  versions          NoteVersion[]
+  attachments       Attachment[]
+  embeddings        NoteEmbedding?
+
+  @@index([userId])
+  @@index([userId, isDeleted])
+  @@index([userId, isFavorite])
+  @@index([userId, isArchived])
+  @@index([updatedAt])
+}
+
+model NoteEmbedding {
+  id          String   @id @default(uuid())
+  noteId      String   @unique
+  embedding   Float[]  // Vector embedding for semantic search
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+}
+
+model SharedNote {
+  id               String   @id @default(uuid())
+  noteId           String
+  ownerId          String
+  sharedWithUserId String?
+  shareToken       String?  @unique
+  permissionLevel  String   // 'view' | 'edit'
+  expiresAt        DateTime?
+  createdAt        DateTime @default(now())
+  
+  note             Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  owner            User     @relation(fields: [ownerId], references: [id])
+
+  @@index([noteId])
+  @@index([ownerId])
+  @@index([sharedWithUserId])
+  @@index([shareToken])
+}
+
+model NoteVersion {
+  id        String   @id @default(uuid())
+  noteId    String
+  title     String
+  content   String   @db.Text
+  changedBy String?  // User ID
+  createdAt DateTime @default(now())
+  
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+  @@index([createdAt])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  noteId    String
+  filename  String
+  fileUrl   String
+  fileSize  Int
+  mimeType  String
+  ocrText   String?  @db.Text  // Extracted text from OCR
+  createdAt DateTime @default(now())
+  
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  role      String   // 'user' | 'assistant'
+  message   String   @db.Text
+  context   Json?    // Note IDs or other context
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
